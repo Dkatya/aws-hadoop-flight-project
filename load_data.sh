@@ -1,30 +1,54 @@
 #!/bin/bash
 
-#wget -O flight.csv.bz2 https://example.com/flight_1987.csv.bz2
+# Helper functions
+download_and_confirm() {
+  url=$1
+  output=$2
+  if wget -O "$output" "$url"; then
+    echo "[✔] Downloaded $output"
+  else
+    echo "[✘] Failed to download $output"
+  fi
+}
 
-#1997
-wget -O flight_1997.csv.bz2 https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/RUGDRW
-#2002
-wget -O flight_2002.csv.bz2 https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/OWJXH3
-#2005
-wget -O flight_2005.csv.bz2 https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/JTFT25
-#2006
-wget -O flight_2006.csv.bz2 https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/EPIFFT
-#2007
-wget -O flight_2007.csv.bz2 https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/2BHLWK
+decompress_and_confirm() {
+  file=$1
+  if bzip2 -d "$file"; then
+    echo "[✔] Decompressed $file"
+  else
+    echo "[✘] Failed to decompress $file"
+  fi
+}
 
-# airports
-wget -O airports.csv https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/XTPZZY
-#carriers
-wget -O carriers.csv https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/3NOQ6Q
+upload_to_hdfs() {
+  file=$1
+  if hdfs dfs -put "$file" /user/hive/warehouse; then
+    echo "[✔] Uploaded $file to HDFS"
+  else
+    echo "[✘] Failed to upload $file to HDFS"
+  fi
+}
 
-# Upload the flight data files to HDFS
-hdfs dfs -put flight_1997.csv /user/hive/warehouse
-hdfs dfs -put flight_2002.csv /user/hive/warehouse
-hdfs dfs -put flight_2005.csv /user/hive/warehouse
-hdfs dfs -put flight_2006.csv /user/hive/warehouse
-hdfs dfs -put flight_2007.csv /user/hive/warehouse
+# Flight data (filename => URL)
+declare -A flight_files=(
+  [flight_1997.csv.bz2]="https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/RUGDRW"
+  [flight_2002.csv.bz2]="https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/OWJXH3"
+  [flight_2005.csv.bz2]="https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/JTFT25"
+  [flight_2006.csv.bz2]="https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/EPIFFT"
+  [flight_2007.csv.bz2]="https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/2BHLWK"
+)
 
-# Upload the airports and carriers files to HDFS
-hdfs dfs -put airports.csv /user/hive/warehouse
-hdfs dfs -put carriers.csv /user/hive/warehouse
+# Download and decompress flight files
+for file in "${!flight_files[@]}"; do
+  download_and_confirm "${flight_files[$file]}" "$file"
+  decompress_and_confirm "$file"
+done
+
+# Airport and carrier files
+download_and_confirm "https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/XTPZZY" airports.csv
+download_and_confirm "https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/3NOQ6Q" carriers.csv
+
+# Upload all to HDFS
+for csv in flight_*.csv airports.csv carriers.csv; do
+  upload_to_hdfs "$csv"
+done
