@@ -1,39 +1,61 @@
--- Drop existing sample tables just in case
-DROP TABLE IF EXISTS yekaterina_sample_2015;
-DROP TABLE IF EXISTS yekaterina_sample_2016;
-DROP TABLE IF EXISTS yekaterina_sample_2017;
-DROP TABLE IF EXISTS yekaterina_sample_2018;
-DROP TABLE IF EXISTS yekaterina_sample_2019;
+SET year=${hivevar:year};
+SET rate=${hivevar:rate};
 
--- Create empty sample tables with same structure
-CREATE TABLE yekaterina_sample_2015 AS SELECT * FROM flights_2015 WHERE 1=0;
-CREATE TABLE yekaterina_sample_2016 AS SELECT * FROM flights_2016 WHERE 1=0;
-CREATE TABLE yekaterina_sample_2017 AS SELECT * FROM flights_2017 WHERE 1=0;
-CREATE TABLE yekaterina_sample_2018 AS SELECT * FROM flights_2018 WHERE 1=0;
-CREATE TABLE yekaterina_sample_2019 AS SELECT * FROM flights_2019 WHERE 1=0;
+DROP TABLE IF EXISTS sample_${year};
 
--- Add Delayed column to each sample table
-ALTER TABLE yekaterina_sample_2015 ADD COLUMNS (Delayed STRING);
-ALTER TABLE yekaterina_sample_2016 ADD COLUMNS (Delayed STRING);
-ALTER TABLE yekaterina_sample_2017 ADD COLUMNS (Delayed STRING);
-ALTER TABLE yekaterina_sample_2018 ADD COLUMNS (Delayed STRING);
-ALTER TABLE yekaterina_sample_2019 ADD COLUMNS (Delayed STRING);
+CREATE TABLE sample_${year} (
+  Year INT,
+  Month INT,
+  DayofMonth INT,
+  DayOfWeek INT,
+  DepTime INT,
+  CRSDepTime INT,
+  ArrTime INT,
+  CRSArrTime INT,
+  UniqueCarrier STRING,
+  FlightNum INT,
+  TailNum STRING,
+  ActualElapsedTime INT,
+  CRSElapsedTime INT,
+  AirTime INT,
+  ArrDelay INT,
+  DepDelay INT,
+  Origin STRING,
+  Dest STRING,
+  Distance INT,
+  TaxiIn INT,
+  TaxiOut INT,
+  Cancelled INT,
+  CancellationCode STRING,
+  Diverted INT,
+  CarrierDelay INT,
+  WeatherDelay INT,
+  NASDelay INT,
+  SecurityDelay INT,
+  LateAircraftDelay INT
+);
 
--- For 2016
-INSERT INTO TABLE yekaterina_sample_2016
+INSERT INTO TABLE sample_${year}
 SELECT * 
-FROM flights_2016
-WHERE rand() <= 0.0001
-DIStribute BY rand() 
+FROM flight_${year}
+WHERE rand() <= ${rate}
+DISTRIBUTE BY rand()
 SORT BY rand()
-LIMIT 30000;
+LIMIT 40000;
 
--- For 2017
-INSERT INTO TABLE yekaterina_sample_2017
-SELECT * 
-FROM flights_2017
-WHERE rand() <= 0.0001
-DIStribute BY rand() 
-SORT BY rand()
-LIMIT 30000;
+ALTER TABLE sample_${year} ADD COLUMNS (Delayed STRING);
+
+INSERT OVERWRITE TABLE sample_${year}
+SELECT 
+    Year, Month, DayofMonth, DayOfWeek, DepTime, CRSDepTime, ArrTime, CRSArrTime, 
+    UniqueCarrier, FlightNum, TailNum, ActualElapsedTime, CRSElapsedTime, AirTime, 
+    ArrDelay, DepDelay, Origin, Dest, Distance, TaxiIn, TaxiOut, Cancelled, CancellationCode, 
+    Diverted, CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, LateAircraftDelay,
+    CASE 
+        WHEN CAST(ArrDelay AS INT) <= 0 AND CAST(DepDelay AS INT) <= 0 THEN 'N' 
+        ELSE 'Y' 
+    END AS Delayed
+FROM sample_${year};
+
+
 
